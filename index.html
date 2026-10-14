@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マイノート - 自己導尿記録表</title>
+    <!-- 指定アイコン -->
+    <link rel="icon" href="https://d.kuku.lu/dvn8fgxyp">
+    <link rel="apple-touch-icon" href="https://d.kuku.lu/dvn8fgxyp">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (Excel読込用) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        .day-end-row td {
+            border-bottom: 2px solid #1e293b !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
+
+    <!-- ヘッダー -->
+    <header class="no-print bg-teal-600 text-white shadow-md">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-base font-bold flex items-center gap-2">
+                <i class="fa-solid fa-book"></i> マイノート（自己導尿記録）
+            </h1>
+            <button onclick="switchTab('print')" class="bg-white text-teal-700 hover:bg-teal-50 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1">
+                <i class="fa-solid fa-file-pdf"></i> 病院用月間表（PDF）
+            </button>
+        </div>
+    </header>
+
+    <!-- タブ切替 -->
+    <nav class="no-print bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto flex">
+            <button id="tab-btn-input" onclick="switchTab('input')" class="flex-1 py-3 text-center border-b-2 border-teal-600 text-teal-700 font-semibold text-sm">
+                <i class="fa-solid fa-pen-to-square"></i> 記録をつける
+            </button>
+            <button id="tab-btn-history" onclick="switchTab('history')" class="flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 font-semibold text-sm hover:text-slate-700">
+                <i class="fa-solid fa-list-check"></i> 履歴・管理
+            </button>
+            <button id="tab-btn-print" onclick="switchTab('print')" class="flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 font-semibold text-sm hover:text-slate-700">
+                <i class="fa-solid fa-print"></i> 病院用表・PDF
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto p-4">
+
+        <!-- ================= 1. 入力画面 ================= -->
+        <section id="tab-input" class="no-print space-y-4">
+            <div class="bg-teal-50 border border-teal-200 p-4 rounded-xl flex flex-wrap justify-between items-center gap-3 shadow-sm">
+                <div>
+                    <h3 class="text-xs font-bold text-teal-900">ファイル読込・保存</h3>
+                    <p class="text-[11px] text-teal-700">Excel（.xlsx）やCSVファイルからデータを一括読み込みできます。</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg text-xs font-bold cursor-pointer transition shadow flex items-center gap-1">
+                        <i class="fa-solid fa-file-arrow-up"></i> ファイルを選択して読込
+                        <input type="file" id="fileInputTop" accept=".csv, .xlsx, .xls" onchange="importFile(event)" class="hidden">
+                    </label>
+                    <button onclick="promptExportCSV()" class="bg-white hover:bg-teal-50 text-teal-700 border border-slate-300 px-3 py-2 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1">
+                        <i class="fa-solid fa-file-arrow-down"></i> CSV保存
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-slate-100 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-user-circle text-base text-slate-400"></i>
+                    <span>患者氏名: <input type="text" id="patientNameInput" onchange="savePatientName()" placeholder="例: 二星 智史" class="bg-white border rounded px-2 py-1 text-slate-800 font-bold"></span>
+                </div>
+                <span class="text-slate-400">※印刷表に反映されます</span>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-base font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <i class="fa-regular fa-clock text-teal-600"></i> 日時選択
+                </h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">日付</label>
+                        <input type="date" id="recordDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">時刻</label>
+                        <input type="time" id="recordTime" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <h2 class="text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-bottle-water text-teal-600"></i> 尿量入力 (ml)
+                </h2>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">導尿量 (カテーテル)</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="volume" placeholder="例: 250" class="w-full text-xl font-bold border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:outline-none text-right">
+                            <span class="text-sm font-bold text-slate-600">ml</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">自尿量 (自然排尿)</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="selfVolume" placeholder="0" class="w-full text-xl font-bold border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:outline-none text-right">
+                            <span class="text-sm font-bold text-slate-600">ml</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <span class="block text-xs text-slate-400 mb-1">クイック入力 (導尿量):</span>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button type="button" onclick="setVolume(150)" class="bg-slate-100 hover:bg-teal-50 text-slate-700 font-medium py-1.5 rounded-lg text-xs transition">150ml</button>
+                        <button type="button" onclick="setVolume(200)" class="bg-slate-100 hover:bg-teal-50 text-slate-700 font-medium py-1.5 rounded-lg text-xs transition">200ml</button>
+                        <button type="button" onclick="setVolume(250)" class="bg-slate-100 hover:bg-teal-50 text-slate-700 font-medium py-1.5 rounded-lg text-xs transition">250ml</button>
+                        <button type="button" onclick="setVolume(300)" class="bg-slate-100 hover:bg-teal-50 text-slate-700 font-medium py-1.5 rounded-lg text-xs transition">300ml</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">尿漏れ（失禁）</label>
+                    <select id="leakage" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                        <option value="なし">なし (-)</option>
+                        <option value="少量">少量 (+)</option>
+                        <option value="中等量">中等量 (++)</option>
+                        <option value="多量">多量 (+++)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">気づいたこと / メモ</label>
+                    <input type="text" id="memo" placeholder="例: ナイトバルーン装着" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                </div>
+            </div>
+
+            <button onclick="addRecord()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-base">
+                <i class="fa-solid fa-plus-circle"></i> 記録を追加する
+            </button>
+        </section>
+
+        <!-- ================= 2. 履歴・管理画面 ================= -->
+        <section id="tab-history" class="no-print space-y-4 hidden">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-3">
+                <h2 class="text-base font-bold text-slate-700">データ管理・履歴一覧</h2>
+                <button onclick="promptExportCSV()" class="bg-slate-100 hover:bg-slate-200 text-teal-700 border border-slate-300 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-file-arrow-down"></i> CSV保存
+                </button>
+            </div>
+            <div id="historyList" class="space-y-3"></div>
+        </section>
+
+        <!-- ================= 3. 病院提出用（PDF・印刷画面） ================= -->
+        <section id="tab-print" class="space-y-4 hidden">
+
+            <div class="no-print bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-bold text-slate-600">表示月:</label>
+                    <input type="month" id="selectedMonth" onchange="renderPrintTable()" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold focus:ring-2 focus:ring-teal-500">
+                    <button onclick="setCurrentMonth()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1.5 rounded-md font-medium">今月</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="requestPdfFromSheet()" id="pdfBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm shadow flex items-center gap-2 transition">
+                        <i class="fa-solid fa-file-pdf"></i> スプレッドシートPDFを作成・取得
+                    </button>
+                </div>
+            </div>
+
+            <!-- 生成されたダウンロードリンクが表示される通知エリア -->
+            <div id="pdfNotification" class="hidden bg-emerald-50 border-2 border-emerald-500 p-4 rounded-xl shadow-md text-center space-y-2">
+                <p class="text-xs font-bold text-emerald-900"><i class="fa-solid fa-circle-check text-emerald-600 text-base"></i> 医療用PDFの準備ができました！</p>
+                <div id="pdfLinkContainer"></div>
+            </div>
+
+            <!-- 画面プレビュー用 -->
+            <div class="overflow-x-auto bg-slate-100 p-2 rounded-xl">
+                <div id="pdfContainer" class="bg-white p-6 rounded-lg shadow border border-slate-300 mx-auto" style="width: 1050px; min-width: 1050px;">
+                    
+                    <div class="border-b-2 border-slate-800 pb-2 mb-3 flex justify-between items-end">
+                        <div>
+                            <h1 class="text-lg font-black tracking-wide text-slate-900">自己導尿記録表</h1>
+                            <p class="text-xs text-slate-600 mt-0.5">対象月: <span id="printMonthTitle" class="font-bold underline text-slate-900"></span></p>
+                        </div>
+                        <div class="text-right text-xs text-slate-700 space-y-0.5">
+                            <div>患者氏名： <span id="printPatientName" class="font-bold underline px-2 text-sm">________________</span> 様</div>
+                            <div class="text-[10px] text-slate-400">出力日: <span id="printExportDate"></span></div>
+                        </div>
+                    </div>
+
+                    <table class="w-full border-collapse text-center text-xs">
+                        <thead>
+                            <tr class="bg-slate-200 text-slate-900 font-bold border-2 border-slate-700">
+                                <th class="py-1.5 px-2 border border-slate-600 w-20">日付</th>
+                                <th class="py-1.5 px-2 border border-slate-600 w-12">回数</th>
+                                <th class="py-1.5 px-2 border border-slate-600 w-20">時刻</th>
+                                <th class="py-1.5 px-2 border border-slate-600 w-28">排尿量 (自尿)</th>
+                                <th class="py-1.5 px-2 border border-slate-600 w-28">導尿量</th>
+                                <th class="py-1.5 px-2 border border-slate-600 w-20">漏れ</th>
+                                <th class="py-1.5 px-2 border border-slate-600 text-left px-3">気づいたこと / メモ</th>
+                                <th class="py-1.5 px-2 border border-slate-600 w-28">一日尿量合計</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matrixTableBody" class="font-medium">
+                            <!-- 動的生成 -->
+                        </tbody>
+                    </table>
+
+                    <div class="mt-3 pt-1 border-t border-slate-300 text-[10px] text-slate-500 flex justify-between items-center">
+                        <span>※ 排尿量(自尿)＝自然排尿量、導尿量＝カテーテルによる排尿量（単位: ml）</span>
+                        <span class="font-bold">Medical Record / 医療機関提出用</span>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let records = JSON.parse(localStorage.getItem('self_catheter_records') || '[]');
+        let patientName = localStorage.getItem('self_catheter_patient_name') || '二星 智史';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setInitialDateTime();
+            document.getElementById('patientNameInput').value = patientName;
+            setCurrentMonth();
+            renderHistory();
+        });
+
+        function setInitialDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+
+            document.getElementById('recordDate').value = `${year}-${month}-${day}`;
+            document.getElementById('recordTime').value = `${hours}:${minutes}`;
+        }
+
+        function setVolume(val) {
+            document.getElementById('volume').value = val;
+        }
+
+        function savePatientName() {
+            patientName = document.getElementById('patientNameInput').value;
+            localStorage.setItem('self_catheter_patient_name', patientName);
+            renderPrintTable();
+        }
+
+        function setCurrentMonth() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            document.getElementById('selectedMonth').value = `${year}-${month}`;
+            renderPrintTable();
+        }
+
+        function switchTab(tab) {
+            ['input', 'history', 'print'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`tab-btn-${t}`).className = 'flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 font-semibold text-sm hover:text-slate-700';
+            });
+
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-btn-${tab}`).className = 'flex-1 py-3 text-center border-b-2 border-teal-600 text-teal-700 font-semibold text-sm';
+
+            if(tab === 'print') renderPrintTable();
+            if(tab === 'history') renderHistory();
+        }
+
+        // 新しいGASウェブアプリURLを埋め込み済み
+        function requestPdfFromSheet() {
+            const gasWebAppUrl = 'https://script.google.com/macros/s/AKfycby_u0d5-b4-dhJvibjvDdojKEMgUwfWhp_h8MXLxygbOnjPuEh_rTeRjwuemmxxqzEuAQ/exec';
+
+            const selectedMonth = document.getElementById('selectedMonth').value;
+            if(!selectedMonth) {
+                alert('対象月を選択してください。');
+                return;
+            }
+
+            const btn = document.getElementById('pdfBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> PDF作成中...';
+
+            const monthRecords = records.filter(r => r.date && r.date.startsWith(selectedMonth));
+
+            fetch(gasWebAppUrl, {
+                method: 'POST',
+                body: JSON.stringify({
+                    month: selectedMonth,
+                    patientName: patientName,
+                    records: monthRecords
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> スプレッドシートPDFを作成・取得';
+
+                if(data && data.downloadUrl) {
+                    const notif = document.getElementById('pdfNotification');
+                    const container = document.getElementById('pdfLinkContainer');
+                    notif.classList.remove('hidden');
+                    container.innerHTML = `
+                        <a href="${data.downloadUrl}" target="_blank" class="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm shadow transition mt-1">
+                            <i class="fa-solid fa-download mr-1"></i> PDFファイルをダウンロード・開く
+                        </a>
+                    `;
+                    alert('PDFの作成が完了しました！画面上の通知リンクからダウンロードできます。');
+                } else {
+                    alert('PDFの生成に成功しましたが、ダウンロードリンクの取得に失敗しました。');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> スプレッドシートPDFを作成・取得';
+                alert('通信エラーが発生しました。GASのウェブアプリ設定やデプロイ状態をご確認ください。');
+            });
+        }
+
+        function addRecord() {
+            const date = document.getElementById('recordDate').value;
+            const time = document.getElementById('recordTime').value;
+            const volume = parseInt(document.getElementById('volume').value, 10) || 0;
+            const selfVolume = parseInt(document.getElementById('selfVolume').value, 10) || 0;
+            const leakage = document.getElementById('leakage').value;
+            const memo = document.getElementById('memo').value.trim();
+
+            if (!date || !time) {
+                alert('日付と時刻を正しく入力してください。');
+                return;
+            }
+
+            const newRecord = {
+                id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
+                datetime: `${date}T${time}`,
+                date: date,
+                time: time,
+                volume: volume,
+                selfVolume: selfVolume,
+                leakage: leakage,
+                memo: memo
+            };
+
+            records.push(newRecord);
+            records.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+            localStorage.setItem('self_catheter_records', JSON.stringify(records));
+
+            document.getElementById('volume').value = '';
+            document.getElementById('selfVolume').value = '';
+            document.getElementById('memo').value = '';
+
+            alert('記録を追加しました！');
+            setInitialDateTime();
+        }
+
+        function deleteRecord(id) {
+            if(confirm('この記録を削除しますか？')) {
+                records = records.filter(r => r.id !== id);
+                localStorage.setItem('self_catheter_records', JSON.stringify(records));
+                renderHistory();
+            }
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('historyList');
+            if (records.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-slate-400 bg-white rounded-xl border">記録がまだありません。</div>';
+                return;
+            }
+
+            const grouped = {};
+            records.forEach(r => {
+                if(!grouped[r.date]) grouped[r.date] = [];
+                grouped[r.date].push(r);
+            });
+
+            let html = '';
+            Object.keys(grouped).sort().reverse().forEach(dateStr => {
+                const dayRecords = grouped[dateStr];
+                dayRecords.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+
+                const dayTotalVol = dayRecords.reduce((sum, item) => sum + item.volume, 0);
+                const dayTotalSelf = dayRecords.reduce((sum, item) => sum + item.selfVolume, 0);
+
+                html += `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-100 px-4 py-2.5 flex justify-between items-center font-bold text-slate-700 text-sm">
+                            <span>${dateStr}</span>
+                            <span class="text-xs text-teal-700">導尿:${dayTotalVol}ml / 自尿:${dayTotalSelf}ml (${dayRecords.length}回)</span>
+                        </div>
+                        <div class="divide-y divide-slate-100">
+                `;
+
+                dayRecords.forEach(r => {
+                    html += `
+                        <div class="p-3 flex justify-between items-center">
+                            <div>
+                                <span class="font-bold text-slate-800 text-sm">${r.time}</span>
+                                <span class="ml-2 font-semibold text-teal-700">導尿:${r.volume}ml</span>
+                                <span class="ml-2 font-semibold text-blue-600">自尿:${r.selfVolume}ml</span>
+                                ${r.leakage && r.leakage !== 'なし' ? `<span class="ml-2 text-xs text-rose-500 font-semibold">漏:${r.leakage}</span>` : ''}
+                                ${r.memo ? `<div class="text-xs text-slate-500 mt-0.5">メモ: ${r.memo}</div>` : ''}
+                            </div>
+                            <button onclick="deleteRecord('${r.id}')" class="text-slate-300 hover:text-rose-500 p-1">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    `;
+                });
+
+                html += `</div></div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        let lastValidDate = '';
+        function parseDateString(rawDate) {
+            if (rawDate !== undefined && rawDate !== null && String(rawDate).trim() !== '') {
+                if (rawDate instanceof Date && !isNaN(rawDate)) {
+                    const y = rawDate.getFullYear();
+                    const m = String(rawDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(rawDate.getDate()).padStart(2, '0');
+                    lastValidDate = `${y}-${m}-${day}`;
+                    return lastValidDate;
+                }
+                if (!isNaN(rawDate)) {
+                    const num = Number(rawDate);
+                    if (num > 30000) {
+                        const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+                        const y = d.getUTCFullYear();
+                        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                        const day = String(d.getUTCDate()).padStart(2, '0');
+                        lastValidDate = `${y}-${m}-${day}`;
+                        return lastValidDate;
+                    }
+                }
+                let cleaned = String(rawDate).replace(/['"]/g, '').trim();
+                let parts = cleaned.split(/[\/\-\.]/);
+                if (parts.length === 2) {
+                    const year = new Date().getFullYear();
+                    lastValidDate = `${year}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+                    return lastValidDate;
+                } else if (parts.length === 3) {
+                    let year = parts[0];
+                    if (year.length === 2) year = '20' + year;
+                    lastValidDate = `${year}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                    return lastValidDate;
+                }
+                if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(cleaned)) {
+                    const p = cleaned.split('-');
+                    lastValidDate = `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`;
+                    return lastValidDate;
+                }
+            }
+            return lastValidDate;
+        }
+
+        function parseTimeString(rawTime) {
+            if (rawTime === undefined || rawTime === null || String(rawTime).trim() === '') return '00:00';
+            if (!isNaN(rawTime) && Number(rawTime) >= 0 && Number(rawTime) < 1) {
+                const totalMinutes = Math.round(Number(rawTime) * 24 * 60);
+                const h = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+                const m = String(totalMinutes % 60).padStart(2, '0');
+                return `${h}:${m}`;
+            }
+            if (rawTime instanceof Date) {
+                const h = String(rawTime.getHours()).padStart(2, '0');
+                const m = String(rawTime.getMinutes()).padStart(2, '0');
+                return `${h}:${m}`;
+            }
+            let cleaned = String(rawTime).trim().replace(/：/g, ':');
+            let timeMatch = cleaned.match(/(\d{1,2}):(\d{2})/);
+            if (timeMatch) {
+                const h = timeMatch[1].padStart(2, '0');
+                const m = timeMatch[2].padStart(2, '0');
+                return `${h}:${m}`;
+            }
+            return cleaned;
+        }
+
+        function timeToMinutes(timeStr) {
+            if (!timeStr || !timeStr.includes(':')) return 0;
+            const parts = timeStr.split(':');
+            const h = parseInt(parts[0], 10) || 0;
+            const m = parseInt(parts[1], 10) || 0;
+            return h * 60 + m;
+        }
+
+        function importFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            lastValidDate = '';
+            const reader = new FileReader();
+            
+            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        
+                        let addedCount = 0;
+                        for (let i = 1; i < json.length; i++) {
+                            const row = json[i];
+                            if (!row || row.length === 0) continue;
+
+                            const rawDate = row[0];
+                            const rawTime = row[1];
+                            const volume = parseInt(row[2], 10) || 0;
+                            const selfVolume = parseInt(row[3], 10) || 0;
+                            
+                            const date = parseDateString(rawDate);
+                            const time = parseTimeString(rawTime);
+
+                            let leakage = 'なし';
+                            let memo = '';
+
+                            for (let c = 4; c < row.length; c++) {
+                                const val = row[c] ? String(row[c]).trim() : '';
+                                if (!val) continue;
+                                if (val.includes('少量') || val.includes('中等量') || val.includes('多量') || val.includes('失禁')) {
+                                    leakage = val;
+                                } else {
+                                    memo = memo ? `${memo} / ${val}` : val;
+                                }
+                            }
+
+                            if (date) {
+                                const newRecord = {
+                                    id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
+                                    datetime: `${date}T${time}`,
+                                    date: date,
+                                    time: time,
+                                    volume: volume,
+                                    selfVolume: selfVolume,
+                                    leakage: leakage,
+                                    memo: memo
+                                };
+                                records.push(newRecord);
+                                addedCount++;
+                            }
+                        }
+
+                        if (addedCount > 0) {
+                            const uniqueMap = {};
+                            records.forEach(r => { uniqueMap[r.date + '_' + r.time + '_' + r.volume + '_' + r.selfVolume] = r; });
+                            records = Object.values(uniqueMap);
+                            records.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+                            localStorage.setItem('self_catheter_records', JSON.stringify(records));
+                            renderHistory();
+                            alert(`${addedCount}件のExcelデータを正常に読み込みました！`);
+                        } else {
+                            alert('有効なデータを読み込めませんでした。');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('Excelファイルの読み込み中にエラーが発生しました。');
+                    }
+                    event.target.value = '';
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    const lines = text.split(/\r\n|\n/);
+                    let addedCount = 0;
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        const cols = line.split(',');
+                        if (cols.length >= 3) {
+                            const cleanCol = (val) => val ? val.replace(/^"|"$/g, '').trim() : '';
+                            const date = parseDateString(cleanCol(cols[0]));
+                            const time = parseTimeString(cleanCol(cols[1]));
+                            const volume = parseInt(cleanCol(cols[2]), 10) || 0;
+                            const selfVolume = cols[3] ? parseInt(cleanCol(cols[3]), 10) || 0 : 0;
+                            const leakage = cols[4] ? cleanCol(cols[4]) : 'なし';
+                            const memo = cols[5] ? cleanCol(cols[5]) : '';
+
+                            if (date) {
+                                const newRecord = {
+                                    id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
+                                    datetime: `${date}T${time}`,
+                                    date: date,
+                                    time: time,
+                                    volume: volume,
+                                    selfVolume: selfVolume,
+                                    leakage: leakage,
+                                    memo: memo
+                                };
+                                records.push(newRecord);
+                                addedCount++;
+                            }
+                        }
+                    }
+
+                    if (addedCount > 0) {
+                        records.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+                        localStorage.setItem('self_catheter_records', JSON.stringify(records));
+                        renderHistory();
+                        alert(`${addedCount}件のCSVデータを正常に読み込みました！`);
+                    } else {
+                        alert('有効なデータを読み込めませんでした。');
+                    }
+                    event.target.value = '';
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function promptExportCSV() {
+            if(records.length === 0) {
+                alert('出力するデータがありません。');
+                return;
+            }
+            let csv = '\uFEFF日付,時刻,導尿量(ml),自尿量(ml),尿漏れ,メモ\n';
+            records.forEach(r => {
+                csv += `"${r.date}","${r.time}",${r.volume},${r.selfVolume},"${r.leakage}","${r.memo}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `自己導尿記録_${patientName || '患者様'}_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+        }
+
+        function renderPrintTable() {
+            const selectedMonth = document.getElementById('selectedMonth').value;
+            if(!selectedMonth) return;
+
+            const [yearStr, monthStr] = selectedMonth.split('-');
+            const year = parseInt(yearStr, 10);
+            const month = parseInt(monthStr, 10);
+
+            document.getElementById('printMonthTitle').innerText = `${year}年${month}月`;
+            document.getElementById('printPatientName').innerText = patientName || '________________';
+            document.getElementById('printExportDate').innerText = new Date().toLocaleDateString('ja-JP');
+
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const dayMap = {};
+
+            for(let d = 1; d <= daysInMonth; d++) {
+                const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                dayMap[dayKey] = [];
+            }
+
+            records.forEach(r => {
+                if(r.date && r.date.startsWith(selectedMonth)) {
+                    if(dayMap[r.date]) {
+                        dayMap[r.date].push(r);
+                    }
+                }
+            });
+
+            const tbody = document.getElementById('matrixTableBody');
+            tbody.innerHTML = '';
+
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+            Object.keys(dayMap).sort().forEach(dateStr => {
+                const dayNum = parseInt(dateStr.split('-')[2], 10);
+                const dateObj = new Date(dateStr);
+                const dayOfWeek = dayNames[dateObj.getDay()];
+                const isWeekend = dateObj.getDay() === 0 ? 'text-rose-600' : (dateObj.getDay() === 6 ? 'text-blue-600' : '');
+
+                const dayRecords = dayMap[dateStr];
+                dayRecords.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+
+                const recordCount = dayRecords.length;
+                if (recordCount === 0) return;
+
+                const dayTotalVol = dayRecords.reduce((sum, item) => sum + item.volume, 0);
+                const dayTotalSelf = dayRecords.reduce((sum, item) => sum + item.selfVolume, 0);
+                const grandTotal = dayTotalVol + dayTotalSelf;
+
+                dayRecords.forEach((r, idx) => {
+                    const tr = document.createElement('tr');
+                    let rowClasses = "border border-slate-600";
+                    if (idx === recordCount - 1) {
+                        rowClasses += " day-end-row";
+                    }
+                    tr.className = rowClasses;
+
+                    let dateCellHtml = '';
+                    let totalCellHtml = '';
+
+                    if (idx === 0) {
+                        dateCellHtml = `<td rowspan="${recordCount}" class="py-1 px-2 border border-slate-600 font-bold align-middle bg-slate-50">${month}/${dayNum}<br><span class="${isWeekend}">(${dayOfWeek})</span></td>`;
+                        totalCellHtml = `<td rowspan="${recordCount}" class="py-1 px-2 border border-slate-600 font-bold align-middle bg-slate-50 text-slate-900">${grandTotal} ml</td>`;
+                    }
+
+                    let selfValStr = r.selfVolume > 0 ? r.selfVolume : '-';
+                    let volValStr = r.volume > 0 ? r.volume : '-';
+                    let leakageStr = (r.leakage && r.leakage !== 'なし') ? r.leakage : '-';
+
+                    tr.innerHTML = `
+                        ${dateCellHtml}
+                        <td class="py-1 px-2 border border-slate-600 text-center font-bold">${idx + 1}</td>
+                        <td class="py-1 px-2 border border-slate-600 text-center font-bold">${r.time}</td>
+                        <td class="py-1 px-2 border border-slate-600 text-center font-bold">${selfValStr}</td>
+                        <td class="py-1 px-2 border border-slate-600 text-center font-bold text-teal-800">${volValStr}</td>
+                        <td class="py-1 px-2 border border-slate-600 text-center font-semibold text-rose-600">${leakageStr}</td>
+                        <td class="py-1 px-2 border border-slate-600 text-left px-3 text-slate-700">${r.memo || ''}</td>
+                        ${totalCellHtml}
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+
+            if (tbody.innerHTML === '') {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">選択した月の記録はまだありません。「ファイルを選択して読込」からエクセルファイルを読み込んでください。</td></tr>`;
+            }
+        }
+    </script>
+</body>
+</html>
